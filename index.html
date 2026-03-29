@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URSC 26 | Smart River Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --p-green: #1b4332; --bg: #f8f9fa; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; min-height: 100vh; margin: 0; }
+        #sidebar { min-width: 250px; background: var(--p-green); color: white; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        .nav-link { color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: none; display: block; padding: 12px; border-radius: 8px; margin-bottom: 5px; }
+        .nav-link.active { background: rgba(255,255,255,0.15); color: white; font-weight: 600; }
+        .main { flex-grow: 1; padding: 40px; overflow-y: auto; }
+        .data-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid transparent; transition: 0.3s; }
+        .page { display: none; } .page.active { display: block; }
+        .val { font-size: 2.2rem; font-weight: 700; color: var(--p-green); margin-bottom: 0; }
+        .status-badge { padding: 8px 20px; border-radius: 30px; font-weight: 600; font-size: 0.9rem; border: 1px solid #dee2e6; }
+        .pump-on { background: #fee2e2; color: #dc2626; border-color: #fecaca; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h4 class="fw-bold mb-4">MISSION 26</h4>
+    <nav>
+        <a class="nav-link active" onclick="showPage('dash', this)">📊 Dashboard</a>
+        <a class="nav-link" onclick="showPage('rank', this)">🏆 Leaderboard</a>
+    </nav>
+    <div class="mt-5 pt-5 small opacity-50 text-center">IEM YES x UNM</div>
+</div>
+
+<div class="main">
+    <div id="dash" class="page active">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold text-dark">Live Monitor</h2>
+            <div id="p-status" class="status-badge">✅ SYSTEM STANDBY</div>
+        </div>
+
+        <div class="data-card text-center text-white mb-4" style="background: linear-gradient(135deg, #1b4332, #2d6a4f);">
+            <p class="small text-uppercase fw-bold opacity-75 mb-1">Overall River Health</p>
+            <div id="overall" class="display-3 fw-bold">--%</div>
+            <p id="health-label" class="small mb-0 opacity-75">Establishing Connection...</p>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="data-card">
+                    <p class="small fw-bold text-muted mb-2">pH BALANCE</p>
+                    <div id="ph-val" class="val">--</div>
+                    <div class="progress mt-2" style="height:6px;"><div id="ph-bar" class="progress-bar bg-success" style="width:0%"></div></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="data-card">
+                    <p class="small fw-bold text-muted mb-2">SOLIDS (PPM)</p>
+                    <div id="tds-val" class="val">--</div>
+                    <div class="progress mt-2" style="height:6px;"><div id="tds-bar" class="progress-bar bg-info" style="width:0%"></div></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="data-card">
+                    <p class="small fw-bold text-muted mb-2">TURBIDITY (NTU)</p>
+                    <div id="turb-val" class="val">--</div>
+                    <div class="progress mt-2" style="height:6px;"><div id="turb-bar" class="progress-bar bg-warning" style="width:0%"></div></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div id="pump-card" class="data-card text-center">
+                    <p class="small fw-bold text-muted mb-2">PUMP STATUS</p>
+                    <div id="pump-display-val" class="val" style="font-size: 1.5rem;">STANDBY</div>
+                    <small id="pump-desc" class="text-muted d-block mt-2">Monitoring Quality</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-card">
+            <h5 class="fw-bold mb-4">Water Health History</h5>
+            <canvas id="historyChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <div id="rank" class="page">
+        <h2 class="fw-bold mb-4">Segment Leaderboard</h2>
+        <div class="data-card p-0 overflow-hidden">
+            <table class="table mb-0 align-middle">
+                <thead class="table-dark"><tr><th class="ps-4">Rank</th><th>Segment</th><th>Health Score</th><th>NWQS Class</th></tr></thead>
+                <tbody>
+                    <tr><td class="ps-4 fw-bold">01</td><td>Taman Melawati (ART! Zone)</td><td><span class="badge bg-success">92/100</span></td><td>Class II</td></tr>
+                    <tr><td class="ps-4 fw-bold">02</td><td>Klang River Middle</td><td><span class="badge bg-warning text-dark">65/100</span></td><td>Class III</td></tr>
+                    <tr><td class="ps-4 fw-bold">03</td><td>Industrial Zone Outflow</td><td><span class="badge bg-danger">38/100</span></td><td>Class IV</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDml9d0sjRCWK9JxleB9bc2lhP-7L3F1Hg",
+        authDomain: "trial-b43bd.firebaseapp.com",
+        databaseURL: "https://trial-b43bd-default-rtdb.firebaseio.com",
+        projectId: "trial-b43bd",
+        appId: "1:410965802686:web:eb119e9d4063cd8f4ea8ef"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let ph = 7, tds = 0, turb = 0;
+
+    // 1. Core Sensor Listeners
+    onValue(ref(db, 'Current/pH'), (s) => { ph = s.val() || 7; updateUI(); });
+    onValue(ref(db, 'Current/TDS'), (s) => { tds = s.val() || 0; updateUI(); });
+    onValue(ref(db, 'Current/Turbidity'), (s) => { turb = s.val() || 0; updateUI(); });
+
+    // 2. Pump Logic & UI Alerts
+    onValue(ref(db, 'Current/PumpActive'), (s) => { 
+        const isActive = s.val();
+        const badge = document.getElementById('p-status');
+        const card = document.getElementById('pump-card');
+        const displayVal = document.getElementById('pump-display-val');
+        const desc = document.getElementById('pump-desc');
+
+        if (isActive === true) {
+            badge.innerText = "⚠️ SAMPLING ACTIVE";
+            badge.className = "status-badge pump-on";
+            displayVal.innerText = "RUNNING";
+            displayVal.style.color = "#dc2626";
+            card.style.backgroundColor = "#fff5f5";
+            card.style.borderColor = "#fecaca";
+            desc.innerText = "Capturing First Flush...";
+            alert("POLLUTION DETECTED: First Flush Sampling Pump Active!");
+        } else {
+            badge.innerText = "✅ SYSTEM STANDBY";
+            badge.className = "status-badge";
+            displayVal.innerText = "STANDBY";
+            displayVal.style.color = "#1b4332";
+            card.style.backgroundColor = "#ffffff";
+            card.style.borderColor = "transparent";
+            desc.innerText = "Monitoring river quality...";
+        }
+    });
+
+    // 3. History Chart Setup
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    const historyChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Health Score %', data: [], borderColor: '#1b4332', backgroundColor: 'rgba(27, 67, 50, 0.1)', fill: true, tension: 0.4 }] },
+        options: { scales: { y: { min: 0, max: 100 } } }
+    });
+
+    onValue(ref(db, 'History'), (snapshot) => {
+        const data = snapshot.val();
+        if(!data) return;
+        const sortedKeys = Object.keys(data).sort();
+        historyChart.data.labels = sortedKeys;
+        historyChart.data.datasets[0].data = sortedKeys.map(k => typeof data[k] === 'object' ? data[k].score : data[k]);
+        historyChart.update();
+    });
+
+    // 4. Update UI & Scoring logic based on NWQS Standards
+    function updateUI() {
+        document.getElementById('ph-val').innerText = ph.toFixed(1);
+        document.getElementById('ph-bar').style.width = Math.min(100, Math.max(0, (ph-5)/4 * 100)) + "%";
+        
+        document.getElementById('tds-val').innerText = tds;
+        document.getElementById('tds-bar').style.width = Math.min(100, (tds/1500 * 100)) + "%";
+
+        document.getElementById('turb-val').innerText = turb;
+        document.getElementById('turb-bar').style.width = Math.min(100, (turb/50 * 100)) + "%";
+
+        let score = (100 - (Math.abs(7-ph)*25)) * 0.3 + (100 - (tds/15)) * 0.35 + (100 - (turb*2)) * 0.35;
+        let finalScore = Math.round(Math.max(0, Math.min(100, score)));
+        
+        document.getElementById('overall').innerText = finalScore + "%";
+        document.getElementById('health-label').innerText = finalScore > 80 ? "Condition: Excellent" : (finalScore > 50 ? "Condition: Fair" : "Condition: Critical");
+    }
+</script>
+
+<script>
+    function showPage(id, el) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        el.classList.add('active');
+    }
+</script>
+</body>
+</html>
