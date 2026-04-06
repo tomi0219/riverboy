@@ -5,101 +5,351 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URSC 26 | Smart River Monitor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
-        :root { --p-green: #1b4332; --bg: #f8f9fa; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; min-height: 100vh; margin: 0; }
-        #sidebar { min-width: 250px; background: var(--p-green); color: white; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-        .nav-link { color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: none; display: block; padding: 12px; border-radius: 8px; margin-bottom: 5px; }
-        .nav-link.active { background: rgba(255,255,255,0.15); color: white; font-weight: 600; }
-        .main { flex-grow: 1; padding: 40px; overflow-y: auto; }
-        .data-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid transparent; transition: 0.3s; }
-        .page { display: none; } .page.active { display: block; }
-        .val { font-size: 2.2rem; font-weight: 700; color: var(--p-green); margin-bottom: 0; }
-        .status-badge { padding: 8px 20px; border-radius: 30px; font-weight: 600; font-size: 0.9rem; border: 1px solid #dee2e6; }
-        .pump-on { background: #fee2e2; color: #dc2626; border-color: #fecaca; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        :root {
+            --p-green: #1b4332;
+            --p-green-mid: #2d6a4f;
+            --p-green-light: #52b788;
+            --bg: #f0f4f2;
+            --card-bg: #ffffff;
+            --text-main: #1a1a1a;
+            --text-muted: #6b7280;
+            --danger: #dc2626;
+            --warning: #f59e0b;
+            --success: #16a34a;
+            --border: #e5e7eb;
+            --sidebar-w: 260px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            display: flex;
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        /* ── SIDEBAR ── */
+        #sidebar {
+            width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            background: var(--p-green);
+            color: white;
+            padding: 28px 20px;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+        #sidebar .logo {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        #sidebar .logo-sub {
+            font-size: 0.7rem;
+            opacity: 0.5;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 36px;
+        }
+        .nav-link {
+            color: rgba(255,255,255,0.65);
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-link.active { background: rgba(255,255,255,0.18); color: white; font-weight: 700; }
+        .sidebar-footer {
+            margin-top: auto;
+            font-size: 0.7rem;
+            opacity: 0.4;
+            text-align: center;
+            font-family: 'Space Mono', monospace;
+        }
+
+        /* ── MAIN ── */
+        .main { flex-grow: 1; padding: 36px 40px; overflow-y: auto; max-width: calc(100vw - var(--sidebar-w)); }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ── TOP BAR ── */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; gap: 12px; flex-wrap: wrap; }
+        .top-bar h2 { font-family: 'Space Mono', monospace; font-size: 1.4rem; font-weight: 700; margin: 0; }
+        .top-bar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        #last-updated { font-size: 0.78rem; color: var(--text-muted); font-family: 'Space Mono', monospace; background: white; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); }
+
+        /* ── STATUS BADGE ── */
+        .status-badge { padding: 8px 20px; border-radius: 30px; font-weight: 700; font-size: 0.82rem; border: 1px solid var(--border); font-family: 'Space Mono', monospace; }
+        .pump-on { background: #fee2e2; color: var(--danger); border-color: #fecaca; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+        /* ── HERO CARD ── */
+        .hero-card {
+            background: linear-gradient(135deg, var(--p-green) 0%, var(--p-green-mid) 100%);
+            border-radius: 20px;
+            padding: 32px;
+            color: white;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .hero-score { font-family: 'Space Mono', monospace; font-size: 4rem; font-weight: 700; line-height: 1; }
+        .hero-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; opacity: 0.65; margin-bottom: 4px; }
+        .hero-condition { font-size: 1rem; font-weight: 600; margin-top: 6px; }
+        .hero-rings { display: flex; gap: 16px; flex-wrap: wrap; }
+        .hero-ring { text-align: center; }
+        .hero-ring .ring-label { font-size: 0.7rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+        /* ── DATA CARDS ── */
+        .data-card { background: var(--card-bg); border-radius: 16px; padding: 22px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); margin-bottom: 20px; border: 1px solid var(--border); }
+        .metric-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+        .val { font-family: 'Space Mono', monospace; font-size: 2rem; font-weight: 700; color: var(--p-green); }
+        .progress { height: 6px; border-radius: 99px; background: var(--bg); margin-top: 10px; }
+        .progress-bar { border-radius: 99px; transition: width 0.6s ease; }
+
+        /* ── PUMP CARD ── */
+        #pump-card { text-align: center; }
+        #pump-display-val { font-family: 'Space Mono', monospace; font-size: 1.1rem; font-weight: 700; }
+
+        /* ── CHART CARD ── */
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .chart-header h5 { font-weight: 700; margin: 0; }
+        .chart-stats { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .chart-stat { text-align: center; flex: 1; min-width: 80px; }
+        .chart-stat-val { font-family: 'Space Mono', monospace; font-size: 1.2rem; font-weight: 700; color: var(--p-green); }
+        .chart-stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── MAP ── */
+        #riverMap { height: 420px; width: 100%; border-radius: 12px; margin-top: 16px; z-index: 1; }
+
+        /* ── TABLE ── */
+        .table th { font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; }
+
+        /* ── ALERT BANNER ── */
+        #alert-banner {
+            display: none;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #92400e;
+        }
+        #alert-banner.critical { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+
+        /* ── EXPORT BTN ── */
+        .btn-export { background: var(--p-green); color: white; border: none; border-radius: 8px; padding: 7px 16px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn-export:hover { background: var(--p-green-mid); }
+
+        /* ── NAV BTNS ── */
+        .btn-outline-dark { font-family: 'Space Mono', monospace; font-size: 0.78rem; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            #sidebar { display: none; }
+            .main { padding: 20px; max-width: 100vw; }
+            .hero-score { font-size: 2.5rem; }
+        }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h4 class="fw-bold mb-4">MISSION 26</h4>
+    <div class="logo">MISSION 26</div>
+    <div class="logo-sub">IEM YES × UNM · URSC26</div>
     <nav>
-        <a class="nav-link active" onclick="showPage('dash', this)">📊 Dashboard</a>
-        <a class="nav-link" onclick="showPage('rank', this)">🏆 Leaderboard</a>
+        <a class="nav-link active" onclick="showPage('dash', this)">📊 &nbsp;Dashboard</a>
+        <a class="nav-link" onclick="showPage('rank', this)">🗺️ &nbsp;Regional Map</a>
     </nav>
-    <div class="mt-5 pt-5 small opacity-50 text-center">IEM YES x UNM</div>
+    <div class="sidebar-footer">Smart River Monitor<br>v2.0 · 2026</div>
 </div>
 
 <div class="main">
+
+    <!-- ── DASHBOARD ── -->
     <div id="dash" class="page active">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="fw-bold text-dark">Live Monitor</h2>
-            <div id="p-status" class="status-badge">✅ SYSTEM STANDBY</div>
+
+        <div class="top-bar">
+            <h2>Live Monitor</h2>
+            <div class="top-bar-right">
+                <span id="last-updated">⏱ Last updated: —</span>
+                <div id="p-status" class="status-badge">✅ SYSTEM STANDBY</div>
+            </div>
         </div>
 
-        <div class="data-card text-center text-white mb-4" style="background: linear-gradient(135deg, #1b4332, #2d6a4f);">
-            <p class="small text-uppercase fw-bold opacity-75 mb-1">Overall River Health</p>
-            <div id="overall" class="display-3 fw-bold">--%</div>
-            <p id="health-label" class="small mb-0 opacity-75">Establishing Connection...</p>
+        <!-- Alert Banner -->
+        <div id="alert-banner">⚠️ Water quality alert detected. Please review current readings.</div>
+
+        <!-- Hero Score -->
+        <div class="hero-card">
+            <div>
+                <div class="hero-label">Overall River Health</div>
+                <div class="hero-score" id="overall">--%</div>
+                <div class="hero-condition" id="health-label">Establishing connection…</div>
+            </div>
+            <div class="hero-rings">
+                <div class="hero-ring">
+                    <svg width="64" height="64" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6"/>
+                        <circle id="ring-ph" cx="32" cy="32" r="26" fill="none" stroke="#52b788" stroke-width="6" stroke-dasharray="163" stroke-dashoffset="163" stroke-linecap="round" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset 0.8s ease"/>
+                        <text x="32" y="37" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="Space Mono, monospace" id="ring-ph-txt">—</text>
+                    </svg>
+                    <div class="ring-label">pH</div>
+                </div>
+                <div class="hero-ring">
+                    <svg width="64" height="64" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6"/>
+                        <circle id="ring-tds" cx="32" cy="32" r="26" fill="none" stroke="#7dd3fc" stroke-width="6" stroke-dasharray="163" stroke-dashoffset="163" stroke-linecap="round" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset 0.8s ease"/>
+                        <text x="32" y="37" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="Space Mono, monospace" id="ring-tds-txt">—</text>
+                    </svg>
+                    <div class="ring-label">TDS</div>
+                </div>
+                <div class="hero-ring">
+                    <svg width="64" height="64" viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6"/>
+                        <circle id="ring-turb" cx="32" cy="32" r="26" fill="none" stroke="#fbbf24" stroke-width="6" stroke-dasharray="163" stroke-dashoffset="163" stroke-linecap="round" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset 0.8s ease"/>
+                        <text x="32" y="37" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="Space Mono, monospace" id="ring-turb-txt">—</text>
+                    </svg>
+                    <div class="ring-label">Turb.</div>
+                </div>
+            </div>
         </div>
 
+        <!-- Metric Cards -->
         <div class="row g-3 mb-4">
             <div class="col-md-3">
                 <div class="data-card">
-                    <p class="small fw-bold text-muted mb-2">pH BALANCE</p>
-                    <div id="ph-val" class="val">--</div>
-                    <div class="progress mt-2" style="height:6px;"><div id="ph-bar" class="progress-bar bg-success" style="width:0%"></div></div>
+                    <div class="metric-label">pH Balance</div>
+                    <div id="ph-val" class="val">—</div>
+                    <div class="progress"><div id="ph-bar" class="progress-bar bg-success" style="width:0%"></div></div>
+                    <small id="ph-status" class="text-muted d-block mt-1" style="font-size:0.72rem;">Optimal: 6.5 – 8.5</small>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="data-card">
-                    <p class="small fw-bold text-muted mb-2">SOLIDS (PPM)</p>
-                    <div id="tds-val" class="val">--</div>
-                    <div class="progress mt-2" style="height:6px;"><div id="tds-bar" class="progress-bar bg-info" style="width:0%"></div></div>
+                    <div class="metric-label">Solids (PPM)</div>
+                    <div id="tds-val" class="val">—</div>
+                    <div class="progress"><div id="tds-bar" class="progress-bar bg-info" style="width:0%"></div></div>
+                    <small id="tds-status" class="text-muted d-block mt-1" style="font-size:0.72rem;">Optimal: &lt; 500 ppm</small>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="data-card">
-                    <p class="small fw-bold text-muted mb-2">TURBIDITY (NTU)</p>
-                    <div id="turb-val" class="val">--</div>
-                    <div class="progress mt-2" style="height:6px;"><div id="turb-bar" class="progress-bar bg-warning" style="width:0%"></div></div>
+                    <div class="metric-label">Turbidity (NTU)</div>
+                    <div id="turb-val" class="val">—</div>
+                    <div class="progress"><div id="turb-bar" class="progress-bar bg-warning" style="width:0%"></div></div>
+                    <small id="turb-status" class="text-muted d-block mt-1" style="font-size:0.72rem;">Optimal: &lt; 5 NTU</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div id="pump-card" class="data-card text-center">
-                    <p class="small fw-bold text-muted mb-2">PUMP STATUS</p>
-                    <div id="pump-display-val" class="val" style="font-size: 1.5rem;">STANDBY</div>
-                    <small id="pump-desc" class="text-muted d-block mt-2">Monitoring Quality</small>
+                <div id="pump-card" class="data-card">
+                    <div class="metric-label">Pump Status</div>
+                    <div id="pump-display-val" class="val" style="font-size:1.2rem; color:var(--p-green);">STANDBY</div>
+                    <small id="pump-desc" class="text-muted d-block mt-2" style="font-size:0.72rem;">Monitoring Quality</small>
                 </div>
             </div>
         </div>
 
+        <!-- Chart -->
         <div class="data-card">
-            <h5 class="fw-bold mb-4">Water Health History</h5>
-            <canvas id="historyChart" height="100"></canvas>
+            <div class="chart-header">
+                <h5>Water Health History</h5>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-dark btn-sm" id="older-btn">← Older</button>
+                        <button class="btn btn-outline-dark btn-sm" id="newer-btn">Newer →</button>
+                    </div>
+                </div>
+            </div>
+            <div id="chart-range" style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--text-muted); margin-bottom:10px; min-height:18px;"></div>
+            <canvas id="historyChart" height="90"></canvas>
+            <div class="chart-stats">
+                <div class="chart-stat"><div class="chart-stat-val" id="stat-avg">—</div><div class="chart-stat-label">Avg Score</div></div>
+                <div class="chart-stat"><div class="chart-stat-val" id="stat-max">—</div><div class="chart-stat-label">Peak Score</div></div>
+                <div class="chart-stat"><div class="chart-stat-val" id="stat-min">—</div><div class="chart-stat-label">Lowest Score</div></div>
+                <div class="chart-stat"><div class="chart-stat-val" id="stat-trend">—</div><div class="chart-stat-label">Trend</div></div>
+                <div class="chart-stat"><div class="chart-stat-val" id="stat-count">—</div><div class="chart-stat-label">Records</div></div>
+            </div>
         </div>
     </div>
 
+    <!-- ── REGIONAL MAP ── -->
     <div id="rank" class="page">
-        <h2 class="fw-bold mb-4">Segment Leaderboard</h2>
-        <div class="data-card p-0 overflow-hidden">
+        <div class="top-bar">
+            <h2>Regional Analysis</h2>
+        </div>
+
+        <div class="data-card p-0 overflow-hidden mb-4">
             <table class="table mb-0 align-middle">
-                <thead class="table-dark"><tr><th class="ps-4">Rank</th><th>Segment</th><th>Health Score</th><th>NWQS Class</th></tr></thead>
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-4" style="width:60px">Rank</th>
+                        <th>Segment</th>
+                        <th>Health Score</th>
+                        <th>NWQS Class</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    <tr><td class="ps-4 fw-bold">01</td><td>Taman Melawati (ART! Zone)</td><td><span class="badge bg-success">92/100</span></td><td>Class II</td></tr>
-                    <tr><td class="ps-4 fw-bold">02</td><td>Klang River Middle</td><td><span class="badge bg-warning text-dark">65/100</span></td><td>Class III</td></tr>
-                    <tr><td class="ps-4 fw-bold">03</td><td>Industrial Zone Outflow</td><td><span class="badge bg-danger">38/100</span></td><td>Class IV</td></tr>
+                    <tr>
+                        <td class="ps-4 fw-bold" style="font-family:'Space Mono',monospace;">01</td>
+                        <td>
+                            <div class="fw-bold">Taman Melawati</div>
+                            <small class="text-muted">ART! Zone · Sungai Klang Basin</small>
+                        </td>
+                        <td><span id="table-score" class="badge bg-success" style="font-family:'Space Mono',monospace; font-size:0.85rem;">—/100</span></td>
+                        <td>Class II</td>
+                        <td id="table-status" class="text-muted small">—</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
+
+        <div class="data-card">
+            <h5 class="fw-bold mb-1">Live Basin Health Map</h5>
+            <p class="text-muted small mb-0">Heatmap updates based on real-time sensor score.</p>
+            <div id="riverMap"></div>
+            <div class="mt-3 small text-muted d-flex gap-3 flex-wrap">
+                <span>🔵 <b>Blue:</b> Healthy (&gt;80)</span>
+                <span>🟣 <b>Purple:</b> Moderate (50–80)</span>
+                <span>🔴 <b>Red:</b> Critical (&lt;50)</span>
+            </div>
+        </div>
     </div>
-</div>
+
+</div><!-- /.main -->
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, onValue, set, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyDml9d0sjRCWK9JxleB9bc2lhP-7L3F1Hg",
@@ -112,75 +362,393 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
+    // ── STATE ──
     let ph = 7, tds = 0, turb = 0;
+    let historyLimit = 10;
+    let currentOffset = 0;
+    let allHistoryData = {}; // cache for CSV export
+    let mapInitialized = false;
+    let pendingHeatPoints = null;
 
-    // 1. Core Sensor Listeners
-    onValue(ref(db, 'Current/pH'), (s) => { ph = s.val() || 7; updateUI(); });
-    onValue(ref(db, 'Current/TDS'), (s) => { tds = s.val() || 0; updateUI(); });
-    onValue(ref(db, 'Current/Turbidity'), (s) => { turb = s.val() || 0; updateUI(); });
+    // ── CHART SETUP ──
+    Chart.register(window['chartjs-plugin-annotation'] || {});
 
-    // 2. Pump Logic & UI Alerts
-    onValue(ref(db, 'Current/PumpActive'), (s) => { 
-        const isActive = s.val();
-        const badge = document.getElementById('p-status');
-        const card = document.getElementById('pump-card');
-        const displayVal = document.getElementById('pump-display-val');
-        const desc = document.getElementById('pump-desc');
-
-        if (isActive === true) {
-            badge.innerText = "⚠️ SAMPLING ACTIVE";
-            badge.className = "status-badge pump-on";
-            displayVal.innerText = "RUNNING";
-            displayVal.style.color = "#dc2626";
-            card.style.backgroundColor = "#fff5f5";
-            card.style.borderColor = "#fecaca";
-            desc.innerText = "Capturing First Flush...";
-            alert("POLLUTION DETECTED: First Flush Sampling Pump Active!");
-        } else {
-            badge.innerText = "✅ SYSTEM STANDBY";
-            badge.className = "status-badge";
-            displayVal.innerText = "STANDBY";
-            displayVal.style.color = "#1b4332";
-            card.style.backgroundColor = "#ffffff";
-            card.style.borderColor = "transparent";
-            desc.innerText = "Monitoring river quality...";
+    const histCtx = document.getElementById('historyChart').getContext('2d');
+    const historyChart = new Chart(histCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Health Score %',
+                data: [],
+                borderColor: '#1b4332',
+                backgroundColor: 'rgba(27,67,50,0.08)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 7,
+                pointBackgroundColor: '#1b4332',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: {
+                    min: 0, max: 100,
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: { font: { family: 'Space Mono', size: 11 } }
+                },
+                x: {
+                    ticks: {
+                        font: { family: 'Space Mono', size: 10 },
+                        maxRotation: 35,
+                        minRotation: 35,
+                        autoSkip: true,
+                        maxTicksLimit: 10
+                    },
+                    grid: { display: false }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1b4332',
+                    titleFont: { family: 'Space Mono', size: 11 },
+                    bodyFont: { family: 'DM Sans', size: 13 },
+                    callbacks: {
+                        label: ctx => ` Health Score: ${ctx.parsed.y}%`
+                    }
+                },
+                annotation: {
+                    annotations: {
+                        goodLine: {
+                            type: 'line', yMin: 80, yMax: 80,
+                            borderColor: 'rgba(22,163,74,0.4)', borderWidth: 1.5, borderDash: [5,4],
+                            label: { content: 'Good (80)', display: true, color: '#16a34a', font: { size: 10, family: 'Space Mono' }, position: 'end' }
+                        },
+                        fairLine: {
+                            type: 'line', yMin: 50, yMax: 50,
+                            borderColor: 'rgba(245,158,11,0.4)', borderWidth: 1.5, borderDash: [5,4],
+                            label: { content: 'Fair (50)', display: true, color: '#d97706', font: { size: 10, family: 'Space Mono' }, position: 'end' }
+                        }
+                    }
+                }
+            }
         }
     });
 
-    // 3. History Chart Setup
-    const ctx = document.getElementById('historyChart').getContext('2d');
-    const historyChart = new Chart(ctx, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'Health Score %', data: [], borderColor: '#1b4332', backgroundColor: 'rgba(27, 67, 50, 0.1)', fill: true, tension: 0.4 }] },
-        options: { scales: { y: { min: 0, max: 100 } } }
-    });
-
-    onValue(ref(db, 'History'), (snapshot) => {
-        const data = snapshot.val();
-        if(!data) return;
-        const sortedKeys = Object.keys(data).sort();
-        historyChart.data.labels = sortedKeys;
-        historyChart.data.datasets[0].data = sortedKeys.map(k => typeof data[k] === 'object' ? data[k].score : data[k]);
-        historyChart.update();
-    });
-
-    // 4. Update UI & Scoring logic based on NWQS Standards
-    function updateUI() {
-        document.getElementById('ph-val').innerText = ph.toFixed(1);
-        document.getElementById('ph-bar').style.width = Math.min(100, Math.max(0, (ph-5)/4 * 100)) + "%";
-        
-        document.getElementById('tds-val').innerText = tds;
-        document.getElementById('tds-bar').style.width = Math.min(100, (tds/1500 * 100)) + "%";
-
-        document.getElementById('turb-val').innerText = turb;
-        document.getElementById('turb-bar').style.width = Math.min(100, (turb/50 * 100)) + "%";
-
-        let score = (100 - (Math.abs(7-ph)*25)) * 0.3 + (100 - (tds/15)) * 0.35 + (100 - (turb*2)) * 0.35;
-        let finalScore = Math.round(Math.max(0, Math.min(100, score)));
-        
-        document.getElementById('overall').innerText = finalScore + "%";
-        document.getElementById('health-label').innerText = finalScore > 80 ? "Condition: Excellent" : (finalScore > 50 ? "Condition: Fair" : "Condition: Critical");
+    // ── HISTORY ──
+    // Sort entries using the stored `dateTime` field ("2026-04-06 00:36:20")
+    function parseDateTimeField(dtStr) {
+        if (!dtStr) return new Date(0);
+        // "2026-04-06 00:36:20" → replace space with T so Date() parses correctly
+        const d = new Date(dtStr.replace(' ', 'T'));
+        return isNaN(d) ? new Date(0) : d;
     }
+
+    // Short display label: "Apr 06 00:36"
+    function shortLabel(dtStr) {
+        if (!dtStr) return '—';
+        const d = parseDateTimeField(dtStr);
+        const pad = n => String(n).padStart(2,'0');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${months[d.getMonth()]} ${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // allEntries holds the full sorted list so pagination doesn't re-sort on every click
+    let allEntries = [];
+
+    function updateHistoryChart() {
+        const historyRef = query(ref(db, 'History'), limitToLast(50));
+        onValue(historyRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            allHistoryData = data;
+
+            // Build entries using the stored dateTime field, sort oldest→newest
+            allEntries = Object.keys(data).map(key => {
+                const raw = data[key];
+                const dtStr  = (typeof raw === 'object' && raw.dateTime) ? raw.dateTime : null;
+                const score  = typeof raw === 'object' ? (raw.score ?? raw.health ?? 0) : raw;
+                return { key, dtStr, date: parseDateTimeField(dtStr), score };
+            }).sort((a, b) => a.date - b.date);
+
+            renderPage();
+        });
+    }
+
+    function renderPage() {
+        const total = allEntries.length;
+
+        // currentOffset=0 → show the NEWEST 10 entries (right end of sorted array)
+        // Older btn → increases offset (slides window left / further back in time)
+        // Newer btn → decreases offset (slides window right / closer to present)
+        const end   = Math.max(0, total - currentOffset);
+        const start = Math.max(0, end - historyLimit);
+        const display = allEntries.slice(start, end);
+
+        // Labels use the stored dateTime string, shortened for readability
+        historyChart.data.labels = display.map(e => shortLabel(e.dtStr));
+        historyChart.data.datasets[0].data = display.map(e => e.score);
+        historyChart.update();
+
+        // Time-range text above chart
+        const rangeEl = document.getElementById('chart-range');
+        if (display.length > 0) {
+            const from = display[0].dtStr || '—';
+            const to   = display[display.length - 1].dtStr || '—';
+            rangeEl.innerText = `Showing: ${from}  →  ${to}  (${display.length} of ${total} records)`;
+        } else {
+            rangeEl.innerText = 'No records in this range.';
+        }
+
+        // Disable/enable nav buttons
+        document.getElementById('older-btn').disabled = (start === 0);
+        document.getElementById('newer-btn').disabled = (currentOffset === 0);
+
+        // Stats
+        const scores = display.map(e => e.score);
+        if (scores.length) {
+            const avg   = Math.round(scores.reduce((a,b) => a+b, 0) / scores.length);
+            const max   = Math.max(...scores);
+            const min   = Math.min(...scores);
+            const trend = scores.length > 1
+                ? (scores[scores.length-1] > scores[0] ? '↑ Rising'
+                :  scores[scores.length-1] < scores[0] ? '↓ Falling' : '→ Stable')
+                : '—';
+            document.getElementById('stat-avg').innerText   = avg + '%';
+            document.getElementById('stat-max').innerText   = max + '%';
+            document.getElementById('stat-min').innerText   = min + '%';
+            document.getElementById('stat-trend').innerText = trend;
+            document.getElementById('stat-count').innerText = total;
+        }
+    }
+
+    // ── EXPORT CSV ──
+    window.exportCSV = function() {
+        if (!allEntries.length) { alert('No history data to export yet.'); return; }
+        let csv = 'Datetime,Health Score (%)\n';
+        allEntries.forEach(e => { csv += `"${e.dtStr || ''}",${e.score}\n`; });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'river-health-history.csv'; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // Pagination buttons — Older slides back in time, Newer slides toward present
+    document.getElementById('older-btn').onclick = () => { currentOffset += 5; renderPage(); };
+    document.getElementById('newer-btn').onclick = () => { if (currentOffset >= 5) currentOffset -= 5; else currentOffset = 0; renderPage(); };
+
+    updateHistoryChart();
+
+    // ── REALTIME READINGS ──
+    onValue(ref(db, 'Current/ph'), s => { ph = s.val() ?? 7; updateUI(); });
+    onValue(ref(db, 'Current/tds'), s => { tds = s.val() ?? 0; updateUI(); });
+    onValue(ref(db, 'Current/turbidity'), s => { turb = s.val() ?? 0; updateUI(); });
+
+    onValue(ref(db, 'Current/PumpActive'), s => {
+        const isActive = s.val();
+        const badge = document.getElementById('p-status');
+        const v = document.getElementById('pump-display-val');
+        const desc = document.getElementById('pump-desc');
+        if (isActive) {
+            badge.innerText = '⚠️ SAMPLING ACTIVE';
+            badge.className = 'status-badge pump-on';
+            v.innerText = 'RUNNING'; v.style.color = '#dc2626';
+            desc.innerText = 'Water Sample Active';
+        } else {
+            badge.innerText = '✅ SYSTEM STANDBY';
+            badge.className = 'status-badge';
+            v.innerText = 'STANDBY'; v.style.color = 'var(--p-green)';
+            desc.innerText = 'Monitoring Quality';
+        }
+    });
+
+    // ── MAIN UI UPDATE ──
+    function updateUI() {
+        // Last updated time
+        const now = new Date();
+        const pad = n => String(n).padStart(2,'0');
+        document.getElementById('last-updated').innerText =
+            `⏱ ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+        // pH
+        document.getElementById('ph-val').innerText = ph.toFixed(1);
+        const phPct = Math.min(100, Math.max(0, (ph - 5) / 4 * 100));
+        document.getElementById('ph-bar').style.width = phPct + '%';
+        const phOk = ph >= 6.5 && ph <= 8.5;
+        document.getElementById('ph-status').innerText = phOk ? '✓ Normal range' : '⚠ Out of range';
+        document.getElementById('ph-status').style.color = phOk ? 'var(--success)' : 'var(--danger)';
+
+        // TDS
+        document.getElementById('tds-val').innerText = tds;
+        document.getElementById('tds-bar').style.width = Math.min(100, tds / 1500 * 100) + '%';
+        const tdsOk = tds < 500;
+        document.getElementById('tds-status').innerText = tdsOk ? '✓ Acceptable' : '⚠ Elevated';
+        document.getElementById('tds-status').style.color = tdsOk ? 'var(--success)' : 'var(--warning)';
+
+        // Turbidity
+        document.getElementById('turb-val').innerText = turb;
+        document.getElementById('turb-bar').style.width = Math.min(100, turb / 50 * 100) + '%';
+        const turbOk = turb < 5;
+        document.getElementById('turb-status').innerText = turbOk ? '✓ Clear' : '⚠ Turbid';
+        document.getElementById('turb-status').style.color = turbOk ? 'var(--success)' : 'var(--warning)';
+
+        // Score
+        let score = (100 - (Math.abs(7 - ph) * 25)) * 0.3
+                  + (100 - (tds / 15)) * 0.35
+                  + (100 - (turb * 2)) * 0.35;
+        let final = Math.round(Math.max(0, Math.min(100, score)));
+
+        document.getElementById('overall').innerText = final + '%';
+        document.getElementById('table-score').innerText = final + '/100';
+
+        let condition, badgeClass, tableStatus;
+        if (final > 80) {
+            condition = '🟢 Condition: Excellent';
+            badgeClass = 'badge bg-success';
+            tableStatus = '✅ Clean';
+        } else if (final > 50) {
+            condition = '🟡 Condition: Fair';
+            badgeClass = 'badge bg-warning text-dark';
+            tableStatus = '⚠️ Moderate';
+        } else {
+            condition = '🔴 Condition: Critical';
+            badgeClass = 'badge bg-danger';
+            tableStatus = '🚨 Polluted';
+        }
+        document.getElementById('health-label').innerText = condition;
+        document.getElementById('table-score').className = badgeClass;
+        document.getElementById('table-status').innerText = tableStatus;
+
+        // Alert banner
+        const banner = document.getElementById('alert-banner');
+        if (final < 50) {
+            banner.style.display = 'block';
+            banner.className = 'alert-banner critical';
+            banner.innerHTML = '🚨 <b>Critical alert:</b> River health is below acceptable threshold. Immediate review recommended.';
+            // inline style since it's dynamically shown
+            banner.style.cssText = 'display:block;background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:12px 20px;margin-bottom:20px;font-size:0.88rem;font-weight:600;color:#7f1d1d;';
+        } else if (final < 80) {
+            banner.style.cssText = 'display:block;background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:12px 20px;margin-bottom:20px;font-size:0.88rem;font-weight:600;color:#92400e;';
+            banner.innerHTML = '⚠️ <b>Attention:</b> Water quality is moderate. Continue monitoring.';
+        } else {
+            banner.style.display = 'none';
+        }
+
+        // SVG rings
+        const CIRC = 163;
+        function setRing(id, pct) {
+            const el = document.getElementById(id);
+            if (el) el.style.strokeDashoffset = CIRC - (CIRC * pct / 100);
+        }
+        setRing('ring-ph', phPct);
+        setRing('ring-tds', Math.min(100, tds / 1500 * 100));
+        setRing('ring-turb', Math.min(100, turb / 50 * 100));
+        document.getElementById('ring-ph-txt').innerText = ph.toFixed(1);
+        document.getElementById('ring-tds-txt').innerText = tds > 999 ? (tds/1000).toFixed(1)+'k' : tds;
+        document.getElementById('ring-turb-txt').innerText = turb;
+
+        // Write back to Firebase
+        set(ref(db, 'Locations/taman_melawati'), { score: final, lat: 3.2105, lng: 101.7505 });
+    }
+
+    // ── MAP ──
+    function getGradientForScore(score) {
+        if (score >= 70) {
+            return { 0.0: '#0033ff', 1.0: '#0033ff' };   // Clean: solid blue
+        } else if (score >= 40) {
+            return { 0.0: '#aa0099', 1.0: '#aa0099' };   // Moderate: solid purple
+        } else {
+            return { 0.0: '#ff0000', 1.0: '#ff0000' };   // Critical: solid red
+        }
+    }
+
+    function applyLocations(locations) {
+        if (!window.riverMap || !window.heatLayer) return;
+
+        // Clear existing markers
+        window.riverMap.eachLayer((layer) => {
+            if (layer instanceof L.Marker) window.riverMap.removeLayer(layer);
+        });
+
+        const allPoints = [];
+        // Ghost anchors: force leaflet.heat to always treat 1.0 as max (placed in ocean)
+        allPoints.push([0, 0, 1.0]);
+        allPoints.push([0, 0, 0.0]);
+
+        Object.keys(locations).forEach(key => {
+            const loc = locations[key];
+            if (loc.lat == null || loc.lng == null) return;
+            const score = Math.max(0, Math.min(100, loc.score || 0));
+
+            // Set solid color gradient BEFORE adding points
+            window.heatLayer.setOptions({ gradient: getGradientForScore(score) });
+
+            // Spread 40 points around sensor for a natural blob
+            const spread = 0.0015;
+            for (let i = 0; i < 40; i++) {
+                allPoints.push([
+                    loc.lat + (Math.random() - 0.5) * spread,
+                    loc.lng + (Math.random() - 0.5) * spread,
+                    1.0
+                ]);
+            }
+
+            L.marker([loc.lat, loc.lng])
+                .bindPopup(`<b>${key.replace(/_/g, ' ')}</b><br>Health Score: ${score}%`)
+                .addTo(window.riverMap);
+        });
+
+        window.heatLayer.setLatLngs(allPoints);
+    }
+
+    function initMap() {
+        if (mapInitialized) return;
+        mapInitialized = true;
+
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        window.riverMap = L.map('riverMap').setView([3.2105, 101.7505], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(window.riverMap);
+
+        // Start with red as default; applyLocations will override via setOptions
+        window.heatLayer = L.heatLayer([], {
+            radius: 40,
+            blur: 15,
+            minOpacity: 0.95,
+            max: 1.0,
+            gradient: { 0.0: '#ff0000', 1.0: '#ff0000' }
+        }).addTo(window.riverMap);
+
+        if (pendingHeatPoints) {
+            applyLocations(pendingHeatPoints);
+            pendingHeatPoints = null;
+        }
+    }
+
+    // Listen to Locations; buffer if map not open yet
+    onValue(ref(db, 'Locations'), (snap) => {
+        const locs = snap.val();
+        if (!locs) return;
+        if (mapInitialized) {
+            applyLocations(locs);
+        } else {
+            pendingHeatPoints = locs;
+        }
+    });
+
+    window.initMap = initMap;
 </script>
 
 <script>
@@ -189,7 +757,12 @@
         document.getElementById(id).classList.add('active');
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         el.classList.add('active');
+        if (id === 'rank' && typeof window.initMap === 'function') {
+            window.initMap();
+            setTimeout(() => window.riverMap && window.riverMap.invalidateSize(), 400);
+        }
     }
 </script>
+
 </body>
 </html>
